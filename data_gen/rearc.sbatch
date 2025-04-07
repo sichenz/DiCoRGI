@@ -33,10 +33,22 @@ for file_url in "${files[@]}"; do
     fi
 done
 
+# Download and extract arc_original.zip if it doesn't exist
+if [ ! -d "arc_original" ]; then
+    echo "Downloading arc_original.zip..."
+    wget https://github.com/michaelhodel/re-arc/raw/main/arc_original.zip
+    echo "Extracting arc_original.zip..."
+    unzip arc_original.zip
+    echo "Cleanup: removing zip file..."
+    rm arc_original.zip
+else
+    echo "arc_original directory already exists, skipping download."
+fi
+
 # jupyter nbconvert --to notebook --execute --ExecutePreprocessor.kernel_name=python3 gen10000.ipynb --output gen10000_executed.ipynb"
 
 # Then run the notebook
 singularity exec --nv \
   --overlay /scratch/$USER/jupyter_env/overlay-15GB-500K.ext3:rw \
   /scratch/work/public/singularity/cuda12.3.2-cudnn9.0.0-ubuntu-22.04.4.sif \
-  /bin/bash -c "source /ext3/env.sh; conda activate arc; cd /scratch/$USER/DiCoRGI/data_gen; python gen10000.py 2"   
+  /bin/bash -c "source /ext3/env.sh; conda activate arc; cd /scratch/$USER/DiCoRGI/data_gen; python gen10000.py 2"

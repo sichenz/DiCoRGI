@@ -1,8 +1,11 @@
+# For data_gen
 tqdm
-datasets 
-trl
-numpy
-torch
-transformers
 matplotlib
-futures
+numpy
+
+# For LLaDa
+trl
+torch
+datasets
+transformers
+peft
