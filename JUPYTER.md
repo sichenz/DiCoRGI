@@ -1,28 +1,30 @@
 
-# NYU Greene Jupyter Notebook Environment Setup
+# NYU Greene Conda Environment Setup with Jupyter Notebook Support
 
-This guide provides step-by-step instructions to set up a Jupyter Notebook environment inside a Singularity container. The environment uses an overlay filesystem and installs a Conda environment via Miniforge. It also configures a custom Jupyter kernel to launch within this containerized setup.
+This guide provides step-by-step instructions to set up a Conda + Jupyter notebook environment inside a Singularity container. The environment uses an overlay filesystem and installs a Conda environment via Miniforge. It also configures a custom Jupyter kernel to launch within this containerized setup.
 
 ## Setup Instructions
 
 ### 1. Create Environment Directory and Prepare Overlay
 
-Create a dedicated directory for your environment and copy the overlay image:
+Create a dedicated directory for your environment, see available overlay file systems, and copy the overlay image you need:
 
 ```bash
 mkdir /scratch/$USER/jupyter_env
 cd /scratch/$USER/jupyter_env
-cp -rp /scratch/work/public/overlay-fs-ext3/overlay-15GB-500K.ext3.gz .
-gunzip overlay-15GB-500K.ext3.gz
+ls /scratch/work/public/overlay-fs-ext3
+cp -rp /scratch/work/public/overlay-fs-ext3/overlay-50G-10M.ext3.gz .
+gunzip overlay-50G-10M.ext3.gz
 ```
 
 ### 2. Launch Singularity Container (Read/Write Overlay)
 
-Start the Singularity container using the overlay filesystem in read/write mode:
+List available Singularity images and start the Singularity container using the overlay filesystem in read/write mode:
 
 ```bash
-singularity exec --overlay /scratch/$USER/jupyter_env/overlay-15GB-500K.ext3:rw \
-  /scratch/work/public/singularity/cuda12.3.2-cudnn9.0.0-ubuntu-22.04.4.sif /bin/bash
+ls /scratch/work/public/singularity/
+singularity exec --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
+  /scratch/work/public/singularity/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif /bin/bash
 ```
 
 ### 3. Install Miniforge (Conda)
@@ -62,7 +64,7 @@ Run the environment script and update Conda, then install necessary packages:
 
 ```bash
 source /ext3/env.sh
-conda config --remove channels defaults
+conda config --remove channels defaults #usually it will say CondaKeyError: 'channels': value 'defaults' not present in config, this is normal! No further action needed 
 conda update -n base conda -y
 conda clean --all --yes
 conda install pip --yes
@@ -76,21 +78,29 @@ exit
 cd /scratch/$USER/jupyter_env
 
 # Use previous Singularity session
-singularity exec --overlay /scratch/$USER/jupyter_env/overlay-15GB-500K.ext3:rw \
-  /scratch/work/public/singularity/cuda12.3.2-cudnn9.0.0-ubuntu-22.04.4.sif /bin/bash
+singularity exec --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
+  /scratch/work/public/singularity/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif /bin/bash
 
 # Load environment variables
 source /ext3/env.sh
 
 # Create a new environment
-conda create -n arc
+conda create --name arc python=3.10
 conda activate arc
-cd /scratch/$USER/DiCoRGI
-conda install --file requirements.txt
+pip install -r /scratch/$USER$/DiCoRGI/requirements.txt
 exit
 ```
 
-### 7. Configure the Jupyter Kernel for OnDemand Access
+### 7. Download Packages into the Conda Environment
+
+If the `pip install` command above does not work due to login node compute constraints, you can create an sbatch job similar to `req.sbatch` to run the package installations:
+
+```bash
+sbatch req.sbatch
+squeue -u $USER
+```
+
+### 8. Configure the Jupyter Kernel for OnDemand Access
 
 #### a. Set Up Kernel Directory
 
@@ -116,8 +126,8 @@ Make the following changes to the last few lines in the `python` script
 
 ```bash
 singularity exec $nv \
-  --overlay /scratch/$USER/jupyter_env/overlay-15GB-500K.ext3:ro \
-  /scratch/work/public/singularity/cuda12.3.2-cudnn9.0.0-ubuntu-22.04.4.sif \
+  --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
+  /scratch/work/public/singularity/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif \
   /bin/bash -c "source /ext3/env.sh; $cmd $args"
 ```
 
