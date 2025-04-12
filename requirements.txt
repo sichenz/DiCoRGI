@@ -6,6 +6,5 @@ numpy
 # For LLaDa
 trl
 torch
-datasets
 transformers
 peft

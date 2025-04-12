@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/scratch/sz4972/DiCoRGI/llada/llada_arc.py", line 11, in <module>
+    from transformers import get_linear_schedule_with_warmup
+ModuleNotFoundError: No module named 'transformers'
+/opt/slurm/data/slurmd/job59219655/slurm_script: line 37: unexpected EOF while looking for matching `"'
+/opt/slurm/data/slurmd/job59219655/slurm_script: line 38: syntax error: unexpected end of file
