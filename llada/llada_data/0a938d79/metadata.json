@@ -1,7 +1,0 @@
-{
-  "task_id": "0a938d79",
-  "total_examples": 10000,
-  "train_size": 9500,
-  "val_size": 500,
-  "format": "JSONL with prompt/response pairs for LLaDA training"
-}

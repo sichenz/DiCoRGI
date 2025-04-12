@@ -16,5 +16,5 @@ cd /scratch/$USER/DiCoRGI/llada
 singularity exec --nv \
   --overlay /scratch/$USER/jupyter_env/overlay-15GB-500K.ext3:rw \
   /scratch/work/public/singularity/cuda12.3.2-cudnn9.0.0-ubuntu-22.04.4.sif \
-  /bin/bash -c "source /ext3/env.sh; conda activate arc; cd /scratch/$USER/DiCoRGI/llada; jupyter nbconvert --to notebook --execute --ExecutePreprocessor.kernel_name=python3 llada-8B-instruct.ipynb --output llada-8B-instruct_done.ipynb"
+  /bin/bash -c "source /ext3/env.sh; conda activate arc; cd /scratch/$USER/DiCoRGI/llada; python run.py"
 "   
