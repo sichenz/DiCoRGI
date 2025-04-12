@@ -15,7 +15,6 @@ import generators
 import verifiers
 
 
-
 def get_generators() -> dict:
     """
     returns mapper from task identifiers (keys) to example generator functions
