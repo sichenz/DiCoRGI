@@ -1,0 +1,11 @@
+Job started at Mon May  5 01:02:19 AM EDT 2025
+Running on node: gr008.hpc.nyu.edu
+SLURM_JOBID: 60101381
+CUDA_VISIBLE_DEVICES: 0,1
+Number of CPUs: 8
+Memory: 377Gi
+Processing 400 tasks in 20 batches using 2 GPUs
+Processing batches:   0%|          | 0/20 [00:00<?, ?it/s][2025-05-05 01:02:51,184] [INFO] [real_accelerator.py:239:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2025-05-05 01:02:51,184] [INFO] [real_accelerator.py:239:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+Loading checkpoint shards:   0%|          | 0/6 [00:00<?, ?it/s]Loading checkpoint shards:   0%|          | 0/6 [00:00<?, ?it/s]Loading checkpoint shards:  17%|█▋        | 1/6 [00:03<00:19,  3.93s/it]Loading checkpoint shards:  17%|█▋        | 1/6 [00:03<00:19,  3.93s/it]Loading checkpoint shards:  33%|███▎      | 2/6 [00:09<00:18,  4.67s/it]Loading checkpoint shards:  33%|███▎      | 2/6 [00:09<00:18,  4.67s/it]Loading checkpoint shards:  50%|█████     | 3/6 [00:14<00:14,  4.97s/it]Loading checkpoint shards:  50%|█████     | 3/6 [00:14<00:14,  4.98s/it]Loading checkpoint shards:  67%|██████▋   | 4/6 [00:19<00:10,  5.09s/it]Loading checkpoint shards:  67%|██████▋   | 4/6 [00:19<00:10,  5.09s/it]Loading checkpoint shards:  83%|████████▎ | 5/6 [00:24<00:05,  5.08s/it]Loading checkpoint shards:  83%|████████▎ | 5/6 [00:24<00:05,  5.08s/it]Loading checkpoint shards: 100%|██████████| 6/6 [00:28<00:00,  4.64s/it]Loading checkpoint shards: 100%|██████████| 6/6 [00:28<00:00,  4.76s/it]
+Loading checkpoint shards: 100%|██████████| 6/6 [00:28<00:00,  4.65s/it]Loading checkpoint shards: 100%|██████████| 6/6 [00:28<00:00,  4.77s/it]

@@ -8,3 +8,7 @@ numpy
 # For LLaDa
 torch
 transformers
+scikit-learn
+wandb
+accelerate
+deepspeed

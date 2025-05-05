@@ -1,0 +1,29 @@
+Running on host: gr004.hpc.nyu.edu
+GPU devices: 0
+Current working directory: /scratch/sz4972/DiCoRGI/llada
+Python version:
+Python 3.10.17
+CUDA available:
+True
+Starting SFT training with memory optimization...
+Training arguments:
+Epochs: 3
+Batch size: 1
+Learning rate: 1e-05
+Gradient accumulation steps: 16
+Save steps: 50
+
+[2025-05-05 03:00:53,631] [INFO] [real_accelerator.py:239:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+The `load_in_4bit` and `load_in_8bit` arguments are deprecated and will be removed in the future versions. Please, pass a `BitsAndBytesConfig` object in `quantization_config` argument instead.
+Traceback (most recent call last):
+  File "/scratch/sz4972/DiCoRGI/llada/llada_sft.py", line 338, in <module>
+    model = AutoModel.from_pretrained(
+  File "/ext3/miniforge3/envs/arc/lib/python3.10/site-packages/transformers/models/auto/auto_factory.py", line 564, in from_pretrained
+    return model_class.from_pretrained(
+  File "/ext3/miniforge3/envs/arc/lib/python3.10/site-packages/transformers/modeling_utils.py", line 279, in _wrapper
+    return func(*args, **kwargs)
+  File "/ext3/miniforge3/envs/arc/lib/python3.10/site-packages/transformers/modeling_utils.py", line 4228, in from_pretrained
+    hf_quantizer.validate_environment(
+  File "/ext3/miniforge3/envs/arc/lib/python3.10/site-packages/transformers/quantizers/quantizer_bnb_8bit.py", line 73, in validate_environment
+    raise ImportError(
+ImportError: Using `bitsandbytes` 8-bit quantization requires the latest version of bitsandbytes: `pip install -U bitsandbytes`
