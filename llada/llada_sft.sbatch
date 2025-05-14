@@ -1,53 +1,45 @@
 #!/bin/bash
+#SBATCH --gres=gpu:2
 #SBATCH --nodes=1
-#SBATCH --gpus=1
-#SBATCH --cpus-per-task=4
-#SBATCH --time=6:00:00      # Increased time limit
-#SBATCH --mem=128GB         # Keep this setting as your node supports it
-#SBATCH --job-name=llada_sft_opt
+#SBATCH --cpus-per-task=2
+#SBATCH --time=1:00:00
+#SBATCH --mem=64GB
+#SBATCH --job-name=llada_sft
 #SBATCH --mail-user=sz4972@nyu.edu
 #SBATCH --mail-type=BEGIN,END,FAIL
-#SBATCH --output=llada_sft_opt_%j.out
+#SBATCH --output=llada_sft.out
 
-echo "Running on host: $(hostname)"
-echo "GPU devices: $CUDA_VISIBLE_DEVICES"
-echo "Current working directory: $(pwd)"
+# Create results directory
+export RESULTS_DIR=llada_sft_results
+mkdir -p $RESULTS_DIR
+echo "Results will be saved to: $RESULTS_DIR"
 
-# Module purge to clean the environment
-module purge
+# Create a directory for the implementation
+mkdir -p $RESULTS_DIR/implementation
+cd $RESULTS_DIR/implementation
 
-# Create directory for checkpoints
-mkdir -p /scratch/sz4972/DiCoRGI/llada/checkpoints
+# Download the diffu_grpo_trainer.py file directly from GitHub
+echo "Downloading implementation file..."
+wget -q https://raw.githubusercontent.com/dllm-reasoning/d1/main/diffu-grpo/diffu_grpo_trainer.py
+echo "Download complete"
 
-# Run the training script with Singularity
-singularity exec --nv \
---overlay /scratch/sz4972/jupyter_env/overlay-50G-10M.ext3:rw \
-/scratch/work/public/singularity/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif \
-/bin/bash -c "
-source /ext3/env.sh;
-conda activate arc;
-cd /scratch/sz4972/DiCoRGI/llada;
+# Dataset and problem specific settings
+KEY="007bbfb7"
+ARC_DATA_PATH="/scratch/sz4972/diffuseARC/llada/experiments/arc_data/arc-agi_training_challenges.json"
+MODEL_PATH="LLaDA-sft-s1k"
+NUM_ITER=8
+TEMP=0.3
 
-# Print environment info
-echo 'Python version:';
-python --version;
-echo 'CUDA available:';
-python -c 'import torch; print(torch.cuda.is_available())';
-echo 'CUDA version:';
-python -c 'import torch; print(torch.version.cuda)';
-echo 'GPU device info:';
-python -c 'import torch; print(torch.cuda.get_device_name(0))';
-echo 'GPU memory:';
-nvidia-smi --query-gpu=memory.total,memory.free --format=csv;
+# Return to main directory
+cd ../..
 
-# Run the optimized SFT training script with memory-efficient settings
-echo 'Starting optimized SFT training...';
-python llada_sft_optimized.py \
-  --epochs 3 \
-  --batch-size 1 \
-  --lr 1e-5 \
-  --grad-accum 16 \
-  --max-length 384 \
-  --checkpoint-dir checkpoints \
-  --save-steps 50
-"
+# Run our Python script that imports DiffuGRPOTrainer
+echo "Starting ARC solver..."
+srun --output $RESULTS_DIR/arc_%j.out \
+    python llada_sft.py \
+        --model_path ${MODEL_PATH} \
+        --data_path ${ARC_DATA_PATH} \
+        --key ${KEY} \
+        --output_dir ${RESULTS_DIR} \
+        --num_iterations ${NUM_ITER} \
+        --temperature ${TEMP}
