@@ -2,7 +2,7 @@
 #SBATCH --gres=gpu:2
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
-#SBATCH --time=46:00:00
+#SBATCH --time=50:00:00
 #SBATCH --mem=64GB
 #SBATCH --job-name=llada_parallel
 #SBATCH --mail-user=sz4972@nyu.edu
