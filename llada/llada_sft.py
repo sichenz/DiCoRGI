@@ -3,15 +3,21 @@ import torch.nn.functional as F
 import numpy as np
 import json
 import argparse
+import gc
 from transformers import AutoModel, AutoTokenizer
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
+from torch.cuda.amp import autocast, GradScaler
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='LLaDA SFT Fine-tuning')
 parser.add_argument('--epochs', type=int, default=3, help='Number of training epochs')
-parser.add_argument('--batch-size', type=int, default=2, help='Batch size for training')
+parser.add_argument('--batch-size', type=int, default=1, help='Batch size for training')
 parser.add_argument('--lr', type=float, default=1e-5, help='Learning rate')
+parser.add_argument('--grad-accum', type=int, default=16, help='Gradient accumulation steps')
+parser.add_argument('--max-length', type=int, default=384, help='Maximum sequence length')
+parser.add_argument('--checkpoint-dir', type=str, default='checkpoints', help='Directory to save checkpoints')
+parser.add_argument('--save-steps', type=int, default=100, help='Save checkpoint every X steps')
 args = parser.parse_args()
 
 # Constants
@@ -19,7 +25,7 @@ MASK_ID = 126336
 EOS_TOKEN_ID = 128001  # Adjust based on your tokenizer
 
 class ARCDataset(Dataset):
-    def __init__(self, data, solutions, tokenizer, max_length=512):
+    def __init__(self, data, solutions, tokenizer, max_length=384):
         self.data = data
         self.solutions = solutions
         self.tokenizer = tokenizer
@@ -71,7 +77,14 @@ What should be the Output grid? Only provide the output grid as your answer."""
                 
                 # Tokenize conversation
                 formatted_text = self.tokenizer.apply_chat_template(conversation, tokenize=False)
+                
+                # Only process examples that fit within max_length after truncation
                 tokenized = self.tokenizer(formatted_text, return_tensors="pt", truncation=True, max_length=self.max_length)
+                
+                # Skip overly long sequences
+                if tokenized.input_ids.shape[1] >= self.max_length:
+                    print(f"Skipping example with length {tokenized.input_ids.shape[1]} > {self.max_length}")
+                    continue
                 
                 # Find the prompt length (where assistant response starts)
                 user_text = self.tokenizer.apply_chat_template([{"role": "user", "content": prompt}], tokenize=False, add_generation_prompt=True)
@@ -83,6 +96,7 @@ What should be the Output grid? Only provide the output grid as your answer."""
                     'prompt_length': prompt_length
                 })
         
+        print(f"Prepared {len(samples)} training examples")
         return samples
     
     def __len__(self):
@@ -125,27 +139,55 @@ def forward_process(x, p_data):
     return noisy_x, mask_prob
 
 def train_sft(model, tokenizer, train_data, solutions, device, 
-              epochs=3, batch_size=4, learning_rate=1e-5):
-    """Implements Algorithm 2: Supervised Fine-Tuning of LLaDA"""
+              epochs=3, batch_size=1, learning_rate=1e-5, 
+              gradient_accumulation_steps=16, checkpoint_dir="checkpoints",
+              save_steps=100):
+    """Implements Algorithm 2: Supervised Fine-Tuning of LLaDA with memory optimizations"""
+    
+    import os
+    os.makedirs(checkpoint_dir, exist_ok=True)
     
     # Create dataset and dataloader
-    dataset = ARCDataset(train_data, solutions, tokenizer)
+    dataset = ARCDataset(train_data, solutions, tokenizer, max_length=args.max_length)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
     
-    # Optimizer
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+    # Optimizer with correct hyperparameters for 8B model
+    optimizer = torch.optim.AdamW(
+        model.parameters(), 
+        lr=learning_rate,
+        betas=(0.9, 0.95),  # Better beta values for large models
+        eps=1e-8,           # Epsilon stability value
+        weight_decay=0.01   # Standard weight decay
+    )
+    
+    # Mixed precision scaler
+    scaler = GradScaler()
+    
+    # Learning rate scheduler
+    total_steps = len(dataloader) * epochs
+    from transformers import get_cosine_schedule_with_warmup
+    scheduler = get_cosine_schedule_with_warmup(
+        optimizer, 
+        num_warmup_steps=int(0.1 * total_steps),  # 10% warmup
+        num_training_steps=total_steps
+    )
     
     model.train()
+    global_step = 0
     
     for epoch in range(epochs):
         total_loss = 0
+        optimizer.zero_grad()  # Zero gradients at the beginning of each epoch
+        
         for batch_idx, batch in enumerate(tqdm(dataloader, desc=f"Epoch {epoch+1}/{epochs}")):
+            # Clear GPU cache periodically
+            if batch_idx % 50 == 0:
+                torch.cuda.empty_cache()
+            
             input_ids = batch['input_ids'].to(device)
             prompt_lengths = batch['prompt_lengths'].to(device)
             
-            # Step 2: Sample from data distribution (already done in dataset creation)
-            
-            # Step 3: Apply forward process (add noise)
+            # Forward process (add noise)
             noisy_batch, p_mask = forward_process(input_ids, None)
             
             # Do not add noise to the prompt
@@ -153,35 +195,69 @@ def train_sft(model, tokenizer, train_data, solutions, device,
             prompt_mask = (token_positions < prompt_lengths.unsqueeze(1))
             noisy_batch[prompt_mask] = input_ids[prompt_mask]
             
-            # Calculate the answer length (including the padded EOS tokens)
+            # Calculate the answer length
             prompt_mask = prompt_mask.to(torch.int64)
             answer_lengths = torch.sum((1 - prompt_mask), dim=-1, keepdim=True)
             answer_lengths = answer_lengths.repeat(1, noisy_batch.shape[1])
             
-            # Step 4: Calculate loss
-            masked_indices = (noisy_batch == MASK_ID)
-            logits = model(input_ids=noisy_batch).logits
+            # Forward pass with mixed precision
+            with autocast():
+                # Calculate loss
+                masked_indices = (noisy_batch == MASK_ID)
+                logits = model(input_ids=noisy_batch).logits
+                
+                token_loss = F.cross_entropy(
+                    logits[masked_indices],
+                    input_ids[masked_indices],
+                    reduction='none'
+                ) / p_mask[masked_indices]
+                
+                ce_loss = torch.sum(token_loss / answer_lengths[masked_indices]) / input_ids.shape[0]
+                
+                # Scale the loss by gradient accumulation steps
+                ce_loss = ce_loss / gradient_accumulation_steps
             
-            token_loss = F.cross_entropy(
-                logits[masked_indices],
-                input_ids[masked_indices],
-                reduction='none'
-            ) / p_mask[masked_indices]
+            # Backward pass with gradient scaling
+            scaler.scale(ce_loss).backward()
             
-            ce_loss = torch.sum(token_loss / answer_lengths[masked_indices]) / input_ids.shape[0]
+            # Only update weights after accumulating gradients for specified steps
+            if (batch_idx + 1) % gradient_accumulation_steps == 0 or batch_idx == len(dataloader) - 1:
+                # Unscale the gradients for the optimizer
+                scaler.unscale_(optimizer)
+                
+                # Apply gradient clipping to prevent exploding gradients
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                
+                # Update weights and optimizer step
+                scaler.step(optimizer)
+                scaler.update()
+                scheduler.step()  # Update learning rate
+                optimizer.zero_grad()
+                
+                global_step += 1
+                
+                # Print progress
+                if (batch_idx + 1) % (50 * gradient_accumulation_steps) == 0:
+                    print(f"Batch {batch_idx + 1}, Loss: {ce_loss.item() * gradient_accumulation_steps:.4f}, LR: {scheduler.get_last_lr()[0]:.8f}")
+                
+                # Save checkpoint
+                if global_step % save_steps == 0:
+                    print(f"Saving checkpoint at step {global_step}")
+                    checkpoint_path = os.path.join(checkpoint_dir, f"checkpoint-{global_step}")
+                    os.makedirs(checkpoint_path, exist_ok=True)
+                    model.save_pretrained(checkpoint_path)
+                    tokenizer.save_pretrained(checkpoint_path)
             
-            # Step 5: Calculate gradients and run optimizer
-            optimizer.zero_grad()
-            ce_loss.backward()
-            optimizer.step()
+            total_loss += ce_loss.item() * gradient_accumulation_steps
             
-            total_loss += ce_loss.item()
-            
-            if batch_idx % 10 == 0:
-                print(f"Batch {batch_idx}, Loss: {ce_loss.item():.4f}")
-        
         avg_loss = total_loss / len(dataloader)
         print(f"Epoch {epoch+1} completed. Average Loss: {avg_loss:.4f}")
+        
+        # Save epoch checkpoint
+        epoch_checkpoint_path = os.path.join(checkpoint_dir, f"epoch-{epoch+1}")
+        os.makedirs(epoch_checkpoint_path, exist_ok=True)
+        model.save_pretrained(epoch_checkpoint_path)
+        tokenizer.save_pretrained(epoch_checkpoint_path)
     
     return model
 
@@ -219,8 +295,8 @@ def get_num_transfer_tokens(mask_index, steps):
 
     return num_transfer_tokens
 
-@ torch.no_grad()
-def generate(model, prompt, steps=128, gen_length=128, block_length=128, temperature=0.,
+@torch.no_grad()
+def generate(model, prompt, steps=128, gen_length=128, block_length=32, temperature=0.,
              cfg_scale=0., remasking='low_confidence', mask_id=126336):
     '''
     Args:
@@ -245,6 +321,9 @@ def generate(model, prompt, steps=128, gen_length=128, block_length=128, tempera
     assert steps % num_blocks == 0
     steps = steps // num_blocks
 
+    # Use half precision for inference
+    model.half()
+    
     for num_block in range(num_blocks):
         block_mask_index = (x[:, prompt.shape[1] + num_block * block_length: prompt.shape[1] + (num_block + 1) * block_length:] == mask_id)
         num_transfer_tokens = get_num_transfer_tokens(block_mask_index, steps)
@@ -258,6 +337,8 @@ def generate(model, prompt, steps=128, gen_length=128, block_length=128, tempera
                 logits, un_logits = torch.chunk(logits, 2, dim=0)
                 logits = un_logits + (cfg_scale + 1) * (logits - un_logits)
             else:
+                # Free up memory before inference
+                torch.cuda.empty_cache()
                 logits = model(x).logits
 
             logits_with_noise = add_gumbel_noise(logits, temperature=temperature)
@@ -292,10 +373,30 @@ if __name__ == "__main__":
     print(f"Epochs: {args.epochs}")
     print(f"Batch size: {args.batch_size}")
     print(f"Learning rate: {args.lr}")
+    print(f"Gradient accumulation steps: {args.grad_accum}")
+    print(f"Maximum sequence length: {args.max_length}")
+    print(f"Checkpoint directory: {args.checkpoint_dir}")
+    print(f"Save checkpoint steps: {args.save_steps}")
     print()
     
-    # Load model and tokenizer
-    model = AutoModel.from_pretrained('GSAI-ML/LLaDA-8B-Instruct', trust_remote_code=True, torch_dtype=torch.bfloat16, use_cache=False, device_map="auto").eval()
+    # Use less memory during model loading
+    torch.cuda.empty_cache()
+    gc.collect()
+    
+    # Load model with better memory settings
+    model = AutoModel.from_pretrained(
+        'GSAI-ML/LLaDA-8B-Instruct', 
+        trust_remote_code=True, 
+        torch_dtype=torch.bfloat16,  # Use bfloat16 for memory savings
+        use_cache=False,
+        low_cpu_mem_usage=True,      # Reduce CPU memory usage during loading
+        device_map="auto",           # Let HF decide optimal device mapping
+        offload_folder="offload"     # Offload weights if needed
+    )
+    
+    # Enable gradient checkpointing to save memory
+    model.gradient_checkpointing_enable()
+    
     tokenizer = AutoTokenizer.from_pretrained('GSAI-ML/LLaDA-8B-Instruct', trust_remote_code=True)
     device = model.device
     print("Loaded model on device:", device)
@@ -307,17 +408,33 @@ if __name__ == "__main__":
     with open('/scratch/sz4972/DiCoRGI/llada/arc_data/arc-agi_training_solutions.json', 'r') as f:
         solutions = json.load(f)
     
-    # Perform SFT fine-tuning
+    print(f"Loaded {len(data)} training tasks")
+    
+    # Perform SFT fine-tuning with memory optimizations
     print("Starting SFT fine-tuning...")
-    model = train_sft(model, tokenizer, data, solutions, device, 
-                      epochs=args.epochs, batch_size=args.batch_size, learning_rate=args.lr)
+    model = train_sft(
+        model, tokenizer, data, solutions, device, 
+        epochs=args.epochs, 
+        batch_size=args.batch_size, 
+        learning_rate=args.lr,
+        gradient_accumulation_steps=args.grad_accum,
+        checkpoint_dir=args.checkpoint_dir,
+        save_steps=args.save_steps
+    )
     
-    # Save the fine-tuned model
-    model.save_pretrained("llada_finetuned")
-    tokenizer.save_pretrained("llada_finetuned")
-    print("Fine-tuned model saved to 'llada_finetuned'")
+    # Save the final fine-tuned model
+    print("Saving final model...")
+    model.save_pretrained("llada_finetuned_final")
+    tokenizer.save_pretrained("llada_finetuned_final")
+    print("Fine-tuned model saved to 'llada_finetuned_final'")
     
-    # Test with the first example (keeping the same test process as llada_base.py)
+    # Test with the first example (optional, can be removed to save memory)
+    print("Running inference test on first example...")
+    
+    # Clear cache before inference
+    torch.cuda.empty_cache()
+    gc.collect()
+    
     first_key = list(data.keys())[0]
     task_data = data[first_key]
 
@@ -331,9 +448,6 @@ if __name__ == "__main__":
         input_grid = json.dumps(item['input'])
         output_grid = json.dumps(item['output'])
         examples += f"Input: {input_grid}\nOutput: {output_grid}\n\n"
-
-    print("Training examples:")
-    print(examples)
 
     # Create the prompt for the LLaDA model
     prompt = f"""You are given a set of input-output grid pairs that define a transformation rule. Each grid is a 2D array of integers, where each integer represents a color. Your task is to learn the transformation and apply it to a new input grid.
@@ -355,11 +469,12 @@ What should be the Output grid? Only provide the output grid as your answer."""
     formatted_prompt = tokenizer.apply_chat_template(m, add_generation_prompt=True, tokenize=False)
 
     # Tokenize and generate
-    input_ids = tokenizer(formatted_prompt)['input_ids']
+    input_ids = tokenizer(formatted_prompt, truncation=True, max_length=384)['input_ids']
     input_ids = torch.tensor(input_ids).to(device).unsqueeze(0)
 
-    # Generate with the fine-tuned model
-    out = generate(model, input_ids, steps=128, gen_length=128, block_length=32, temperature=0., cfg_scale=0., remasking='low_confidence')
+    # Generate with the fine-tuned model - reduce generation length for memory
+    with torch.cuda.amp.autocast():  # Use mixed precision
+        out = generate(model, input_ids, steps=64, gen_length=64, block_length=32, temperature=0., cfg_scale=0., remasking='low_confidence')
 
     # Decode the output
     generated_text = tokenizer.batch_decode(out[:, input_ids.shape[1]:], skip_special_tokens=True)[0]
@@ -473,39 +588,8 @@ What should be the Output grid? Only provide the output grid as your answer."""
         for row in grid:
             print(" ".join(map(str, row)))
 
-    def visualize_grids_side_by_side(grid1, grid2, title1="Correct Output", title2="Generated Grid"):
-        """Display two grids side by side with color coding."""
-        if not grid1 or not grid2:
-            print("One or both grids are empty")
-            return
-
-        max_height = max(len(grid1), len(grid2))
-
-        # Add padding to shorter grid
-        padded_grid1 = grid1 + [[0] * len(grid1[0])] * (max_height - len(grid1)) if len(grid1) < max_height else grid1
-        padded_grid2 = grid2 + [[0] * len(grid2[0])] * (max_height - len(grid2)) if len(grid2) < max_height else grid2
-
-        print(f"\n{title1:<30} | {title2}")
-        print("-" * 30 + " | " + "-" * 30)
-
-        for i in range(max_height):
-            if i < len(grid1):
-                row1_str = " ".join(f"{cell:2d}" for cell in grid1[i])
-            else:
-                row1_str = "  " * len(grid2[0])
-
-            if i < len(grid2):
-                row2_str = " ".join(f"{cell:2d}" for cell in grid2[i])
-            else:
-                row2_str = "  " * len(grid2[0])
-
-            print(f"{row1_str:<30} | {row2_str}")
-
     # Display both grids horizontally
     display_grid_horizontally(correct_output, "Correct Output")
     display_grid_horizontally(generated_grid, "Generated Grid")
 
     print(f"\nACCURACY: {accuracy:.2f}%")
-
-    # Display side by side comparison
-    visualize_grids_side_by_side(correct_output, generated_grid)

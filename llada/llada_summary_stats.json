@@ -1,0 +1,12 @@
+{
+  "total_tasks": 372,
+  "successful_tasks": 372,
+  "failed_tasks": 0,
+  "average_accuracy": 9.10556451612903,
+  "median_accuracy": 0.0,
+  "perfect_accuracy_count": 11,
+  "zero_accuracy_count": 327,
+  "shape_match_rate": 0.12365591397849462,
+  "accuracy_with_shape_match": 73.6363043478261,
+  "accuracy_without_shape_match": 0.0
+}

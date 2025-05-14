@@ -2,14 +2,13 @@
 #SBATCH --gres=gpu:2
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=8
-#SBATCH --time=46:00:00
+#SBATCH --time=24:00:00
 #SBATCH --mem=64GB
-#SBATCH --job-name=llada_parallel
+#SBATCH --job-name=llada_resume
 #SBATCH --mail-user=sz4972@nyu.edu
 #SBATCH --mail-type=BEGIN,END,FAIL
-#SBATCH --output=llada_parallel.out
+#SBATCH --output=llada_resume.out
 
-echo "Job started at $(date)"
 echo "Running on node: $(hostname)"
 echo "SLURM_JOBID: $SLURM_JOBID"
 echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
@@ -32,7 +31,10 @@ export OMP_NUM_THREADS=4
 
 cd /scratch/sz4972/DiCoRGI/llada
 
-# Run the Python script with error handling
+# Create checkpoint directory
+mkdir -p checkpoints
+
+# Run the Python script with error handling and checkpointing
 singularity exec --nv \
     --overlay /scratch/sz4972/jupyter_env/overlay-50G-10M.ext3:rw \
     /scratch/work/public/singularity/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif \
@@ -40,21 +42,26 @@ singularity exec --nv \
         source /ext3/env.sh
         conda activate arc
         
-        # Run with better error handling and progress logging
-        python llada_parallel.py 2 --batch-size 20 2>&1 
-        
-        # Check for errors and save final status
-        if [ \${PIPESTATUS[0]} -eq 0 ]; then
-            echo 'SUCCESS' > job_status.txt
+        # Check if we need to resume from a checkpoint
+        if [ -f 'llada_base_results/all_results.json' ]; then
+            echo 'Found previous results, resuming...'
+            python llada_resume.py 2 --batch-size 20 --num-tasks 144 --resume 2>&1
         else
-            echo 'FAILED' > job_status.txt
+            echo 'Starting fresh run for last 144 tasks...'
+            python llada_resume.py 2 --batch-size 20 --num-tasks 144 2>&1
         fi
     "
 
-echo "Job finished at $(date)"
 
 # Display summary if available
 if [ -f "llada_base_results/summary.json" ]; then
     echo "Summary:"
     cat llada_base_results/summary.json
+fi
+
+# Check if we need to report partial completion
+if [ -f "llada_base_results/intermediate_results.json" ]; then
+    echo "Intermediate results saved"
+    completed_count=$(grep -o '"status": "success"' llada_base_results/intermediate_results.json | wc -l)
+    echo "Completed $completed_count tasks successfully"
 fi

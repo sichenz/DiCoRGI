@@ -1,29 +1,33 @@
-Running on host: gr004.hpc.nyu.edu
+Running on host: gv009.hpc.nyu.edu
 GPU devices: 0
 Current working directory: /scratch/sz4972/DiCoRGI/llada
 Python version:
 Python 3.10.17
 CUDA available:
 True
-Starting SFT training with memory optimization...
+Starting SFT training...
 Training arguments:
-Epochs: 3
+Epochs: 5
 Batch size: 1
 Learning rate: 1e-05
-Gradient accumulation steps: 16
-Save steps: 50
 
-[2025-05-05 03:00:53,631] [INFO] [real_accelerator.py:239:get_accelerator] Setting ds_accelerator to cuda (auto detect)
-The `load_in_4bit` and `load_in_8bit` arguments are deprecated and will be removed in the future versions. Please, pass a `BitsAndBytesConfig` object in `quantization_config` argument instead.
+[2025-05-05 13:37:12,348] [INFO] [real_accelerator.py:239:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+The model weights are not tied. Please use the `tie_weights` method before using the `infer_auto_device` function.
+Loading checkpoint shards:   0%|          | 0/6 [00:00<?, ?it/s]Loading checkpoint shards:  17%|█▋        | 1/6 [00:02<00:12,  2.59s/it]Loading checkpoint shards:  33%|███▎      | 2/6 [00:06<00:12,  3.14s/it]Loading checkpoint shards:  50%|█████     | 3/6 [00:09<00:09,  3.25s/it]Loading checkpoint shards:  67%|██████▋   | 4/6 [00:13<00:06,  3.35s/it]Loading checkpoint shards:  83%|████████▎ | 5/6 [00:16<00:03,  3.34s/it]Loading checkpoint shards: 100%|██████████| 6/6 [00:19<00:00,  3.12s/it]Loading checkpoint shards: 100%|██████████| 6/6 [00:19<00:00,  3.17s/it]
+Loaded model on device: cuda:0
+Starting SFT fine-tuning...
+Epoch 1/5:   0%|          | 0/416 [00:00<?, ?it/s]Epoch 1/5:   0%|          | 0/416 [00:06<?, ?it/s]
 Traceback (most recent call last):
-  File "/scratch/sz4972/DiCoRGI/llada/llada_sft.py", line 338, in <module>
-    model = AutoModel.from_pretrained(
-  File "/ext3/miniforge3/envs/arc/lib/python3.10/site-packages/transformers/models/auto/auto_factory.py", line 564, in from_pretrained
-    return model_class.from_pretrained(
-  File "/ext3/miniforge3/envs/arc/lib/python3.10/site-packages/transformers/modeling_utils.py", line 279, in _wrapper
-    return func(*args, **kwargs)
-  File "/ext3/miniforge3/envs/arc/lib/python3.10/site-packages/transformers/modeling_utils.py", line 4228, in from_pretrained
-    hf_quantizer.validate_environment(
-  File "/ext3/miniforge3/envs/arc/lib/python3.10/site-packages/transformers/quantizers/quantizer_bnb_8bit.py", line 73, in validate_environment
-    raise ImportError(
-ImportError: Using `bitsandbytes` 8-bit quantization requires the latest version of bitsandbytes: `pip install -U bitsandbytes`
+  File "/scratch/sz4972/DiCoRGI/llada/llada_sft.py", line 312, in <module>
+    model = train_sft(model, tokenizer, data, solutions, device, 
+  File "/scratch/sz4972/DiCoRGI/llada/llada_sft.py", line 176, in train_sft
+    optimizer.step()
+  File "/ext3/miniforge3/envs/arc/lib/python3.10/site-packages/torch/optim/optimizer.py", line 493, in wrapper
+    out = func(*args, **kwargs)
+  File "/ext3/miniforge3/envs/arc/lib/python3.10/site-packages/torch/optim/optimizer.py", line 91, in _use_grad
+    ret = func(self, *args, **kwargs)
+  File "/ext3/miniforge3/envs/arc/lib/python3.10/site-packages/torch/optim/adamw.py", line 232, in step
+    has_complex = self._init_group(
+  File "/ext3/miniforge3/envs/arc/lib/python3.10/site-packages/torch/optim/adamw.py", line 175, in _init_group
+    state["exp_avg_sq"] = torch.zeros_like(
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 988.00 MiB. GPU 0 has a total capacity of 31.74 GiB of which 355.12 MiB is free. Including non-PyTorch memory, this process has 31.39 GiB memory in use. Of the allocated memory 30.97 GiB is allocated by PyTorch, and 50.71 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)

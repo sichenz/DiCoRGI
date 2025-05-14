@@ -1,0 +1,11 @@
+{
+  "total_tasks": 144,
+  "successful_tasks": 140,
+  "failed_tasks": 4,
+  "average_accuracy": 9.530158730158732,
+  "perfect_accuracy_tasks": 2,
+  "processing_time_seconds": 62299.95114803314,
+  "tasks_per_second": 0.002311398281161352,
+  "start_index": 256,
+  "num_tasks_requested": 144
+}
