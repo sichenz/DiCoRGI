@@ -54,9 +54,10 @@ sh Miniforge3-Linux-x86_64.sh -b -p /ext3/miniforge3
 
 Create an environment setup script to configure Conda:
 
-1. Open the file for editing:
+1. Create and open the file for editing:
 
    ```bash
+   touch /ext3/env.sh
    nano /ext3/env.sh
    ```
 
