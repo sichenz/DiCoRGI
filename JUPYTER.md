@@ -1,28 +1,42 @@
 
 # NYU Greene Conda Environment Setup with Jupyter Notebook Support
 
-This guide provides step-by-step instructions to set up a Conda + Jupyter notebook environment inside a Singularity container. The environment uses an overlay filesystem and installs a Conda environment via Miniforge. It also configures a custom Jupyter kernel to launch within this containerized setup.
+This guide provides step-by-step instructions to set up a Conda + Jupyter notebook environment inside a Singularity container. 
 
 ## Setup Instructions
 
 ### 1. Create Environment Directory and Prepare Overlay
 
-Create a dedicated directory for your environment, see available overlay file systems, and copy the overlay image you need:
-
+Create a dedicated directory for your environment:
 ```bash
 mkdir /scratch/$USER/jupyter_env
 cd /scratch/$USER/jupyter_env
+```
+
+See available overlay file systems:
+
+```bash
 ls /scratch/work/public/overlay-fs-ext3
+```
+
+Copy the overlay file system you need:
+
+```bash
 cp -rp /scratch/work/public/overlay-fs-ext3/overlay-50G-10M.ext3.gz .
 gunzip overlay-50G-10M.ext3.gz
 ```
 
 ### 2. Launch Singularity Container (Read/Write Overlay)
 
-List available Singularity images and start the Singularity container using the overlay filesystem in read/write mode:
+List available Singularity images: 
 
 ```bash
 ls /scratch/work/public/singularity/
+```
+
+Start the Singularity container using the overlay filesystem in read/write mode:
+
+```bash
 singularity exec --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
   /scratch/work/public/singularity/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif /bin/bash
 ```
