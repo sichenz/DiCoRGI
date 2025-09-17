@@ -2,37 +2,28 @@
 
 This guide walks you through setting up and using NYU's Greene High Performance Computing cluster with Singularity containers for machine learning and data science projects.
 
-## Prerequisites
+## 1. Initial Connection on Macbook Terminal
 
-- NYU HPC account with NetID
-- Terminal access (MacBook Terminal, Windows Subsystem for Linux, etc.)
-- Basic familiarity with Linux commands
+(OPTIONAL: if you are using NYU network, either a campus wifi or NYU VPN, please SKIP) 
 
-## 1. Initial Connection
+```bash
+# Connect to Gateway
+ssh <NetID>@gw.hpc.nyu.edu 
+```
 
 ### SSH Access
 ```bash
-# Connect to the gateway
-ssh sz4972@gw.hpc.nyu.edu
-
 # Connect to Greene cluster
 ssh sz4972@greene.hpc.nyu.edu
 ```
 
-### Troubleshooting Connection Issues
+### Troubleshooting Authentication Issues
 If you encounter "access blocked" errors:
 ```bash
-ssh-keygen -R gw.hpc.nyu.edu
+ssh-keygen -R greene.hpc.nyu.edu
 ```
 
-## 2. Initial Setup on Login Node
-
-### Create Conda Environment (Optional - for login node only)
-```bash
-conda create -n nlp python=3.8
-```
-
-## 3. Singularity Container Setup
+## 2. Singularity Container Setup
 
 ### Step 1: Explore Available Resources
 ```bash
@@ -55,8 +46,8 @@ gunzip overlay-50G-10M.ext3.gz
 
 ### Step 3: Enter Singularity Container
 ```bash
-singularity exec --overlay /scratch/$USER/overlay-50G-10M.ext3:rw \
-    /scratch/work/public/singularity/cuda12.1.1-cudnn8.9.0-devel-ubuntu22.04.2.sif \
+singularity exec --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
+    /scratch/work/public/singularity/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif \
     /bin/bash
 ```
 
@@ -95,7 +86,7 @@ export PYTHONPATH=/ext3/miniforge3/bin:$PATH
 # Source the environment
 source /ext3/env.sh
 
-# Remove default channels (normal to see error message)
+# Remove default channels (usually it will say CondaKeyError: 'channels': value 'defaults' not present in config, this is normal! No further action needed)
 conda config --remove channels defaults
 
 # Update conda
@@ -115,7 +106,7 @@ conda install pip -y
 cd /scratch/$USER
 ```
 
-### Enter Container with Updated Singularity Image
+### Enter Container with Singularity Image
 ```bash
 singularity exec --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
     /scratch/work/public/singularity/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif \
@@ -140,13 +131,13 @@ conda activate <environment_name>
 ```bash
 cd /scratch/$USER
 
-singularity exec --overlay /scratch/$USER/jupyter_env/overlay-15GB-500K.ext3:rw \
-    /scratch/work/public/singularity/cuda12.3.2-cudnn9.0.0-ubuntu-22.04.4.sif \
+singularity exec --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
+    /scratch/work/public/singularity/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif \
     /bin/bash
 
 source /ext3/env.sh
-conda activate arc
-cd /home/$USER/<project_directory>
+conda activate <environment_name>
+cd /home/$USER/<project_directory> #ALWAYS copy repos into the 'home' folder and not the 'SCRATCH' folder
 
 # Install from requirements file
 pip install -r requirements.txt
@@ -175,9 +166,9 @@ module purge
 cd /scratch/$USER
 
 singularity exec --nv \
-    --overlay /scratch/$USER/overlay-15GB-500K.ext3:rw \
-    /scratch/work/public/singularity/cuda11.3.0-cudnn8-devel-ubuntu20.04.sif \
-    /bin/bash -c "source /ext3/env.sh; conda activate <environment_name>; cd /home/$USER/<project_directory>; python3 main.py"
+    --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
+    /scratch/work/public/singularity/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif \
+    /bin/bash -c "source /ext3/env.sh; conda activate <environment_name>; cd /home/$USER/<project_directory>; python3 <file_name>.py"
 ```
 
 ### Submit and Monitor Jobs
@@ -199,19 +190,10 @@ srun --gres=gpu:1 --cpus-per-task=1 --mem=16GB --time=00:30:00 --pty /bin/bash
 ### Enter Container in Interactive Mode
 ```bash
 singularity exec --nv \
-    --overlay jupyter_env/overlay-50G-10M.ext3:rw \
+    --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
     /scratch/work/public/singularity/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif \
     /bin/bash
 ```
-
-## Key Points to Remember
-
-1. **Login Node vs Compute Nodes**: Only use login nodes for light tasks like file management and job submission
-2. **Scratch Directory**: Always work in `/scratch/$USER` for better performance
-3. **Overlay Filesystems**: These provide persistent storage within containers
-4. **GPU Access**: Use `--nv` flag with Singularity for GPU access
-5. **Environment Persistence**: Your conda environments and packages persist in the overlay filesystem
-6. **Resource Limits**: Be mindful of time limits and resource allocation in SBATCH scripts
 
 ## Troubleshooting
 
