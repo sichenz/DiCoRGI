@@ -137,7 +137,7 @@ singularity exec --overlay /scratch/$USER/env/overlay-50G-10M.ext3:rw \
 
 source /ext3/env.sh
 conda activate <environment_name>
-cd /home/$USER/<project_directory> #ALWAYS copy repos into the 'home' folder and not the 'SCRATCH' folder
+cd /scratch/$USER/<project_directory> #ALWAYS copy repos into the 'home' folder and not the 'SCRATCH' folder
 
 # Install from requirements file
 pip install -r requirements.txt
