@@ -46,7 +46,7 @@ gunzip overlay-50G-10M.ext3.gz
 
 ### Step 3: Enter Singularity Container
 ```bash
-singularity exec --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
+singularity exec --overlay /scratch/$USER/env/overlay-50G-10M.ext3:rw \
     /scratch/work/public/singularity/cuda12.8.1-cudnn9.8.0-ubuntu24.04.2.sif \
     /bin/bash
 ```
@@ -108,7 +108,7 @@ cd /scratch/$USER/env
 
 ### Enter Container with Singularity Image
 ```bash
-singularity exec --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
+singularity exec --overlay /scratch/$USER/env/overlay-50G-10M.ext3:rw \
     /scratch/work/public/singularity/cuda12.8.1-cudnn9.8.0-ubuntu24.04.2.sif \
     /bin/bash
 ```
@@ -131,7 +131,7 @@ conda activate <environment_name>
 ```bash
 cd /scratch/$USER
 
-singularity exec --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
+singularity exec --overlay /scratch/$USER/env/overlay-50G-10M.ext3:rw \
     /scratch/work/public/singularity/cuda12.8.1-cudnn9.8.0-ubuntu24.04.2.sif \
     /bin/bash
 
@@ -166,7 +166,7 @@ module purge
 cd /scratch/$USER
 
 singularity exec --nv \
-    --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
+    --overlay /scratch/$USER/env/overlay-50G-10M.ext3:rw \
     /scratch/work/public/singularity/cuda12.8.1-cudnn9.8.0-ubuntu24.04.2.sif \
     /bin/bash -c "source /ext3/env.sh; conda activate <environment_name>; cd /home/$USER/<project_directory>; python3 <file_name>.py"
 ```
@@ -190,7 +190,7 @@ srun --gres=gpu:1 --cpus-per-task=1 --mem=16GB --time=00:30:00 --pty /bin/bash
 ### Enter Container in Interactive Mode
 ```bash
 singularity exec --nv \
-    --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
+    --overlay /scratch/$USER/env/overlay-50G-10M.ext3:rw \
     /scratch/work/public/singularity/cuda12.8.1-cudnn9.8.0-ubuntu24.04.2.sif \
     /bin/bash
 ```
