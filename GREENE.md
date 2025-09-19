@@ -37,7 +37,7 @@ ls /scratch/work/public/singularity/
 ### Step 2: Set Up Overlay Filesystem
 ```bash
 # Navigate to your scratch directory
-cd /scratch/$USER
+cd /scratch/$USER/env
 
 # Copy and extract overlay filesystem
 cp -rp /scratch/work/public/overlay-fs-ext3/overlay-50G-10M.ext3.gz .
@@ -47,7 +47,7 @@ gunzip overlay-50G-10M.ext3.gz
 ### Step 3: Enter Singularity Container
 ```bash
 singularity exec --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
-    /scratch/work/public/singularity/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif \
+    /scratch/work/public/singularity/cuda12.8.1-cudnn9.8.0-ubuntu24.04.2.sif \
     /bin/bash
 ```
 
@@ -103,13 +103,13 @@ conda install pip -y
 
 ### Navigate to Your Scratch Directory
 ```bash
-cd /scratch/$USER
+cd /scratch/$USER/env
 ```
 
 ### Enter Container with Singularity Image
 ```bash
 singularity exec --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
-    /scratch/work/public/singularity/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif \
+    /scratch/work/public/singularity/cuda12.8.1-cudnn9.8.0-ubuntu24.04.2.sif \
     /bin/bash
 ```
 
@@ -132,7 +132,7 @@ conda activate <environment_name>
 cd /scratch/$USER
 
 singularity exec --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
-    /scratch/work/public/singularity/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif \
+    /scratch/work/public/singularity/cuda12.8.1-cudnn9.8.0-ubuntu24.04.2.sif \
     /bin/bash
 
 source /ext3/env.sh
@@ -167,7 +167,7 @@ cd /scratch/$USER
 
 singularity exec --nv \
     --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
-    /scratch/work/public/singularity/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif \
+    /scratch/work/public/singularity/cuda12.8.1-cudnn9.8.0-ubuntu24.04.2.sif \
     /bin/bash -c "source /ext3/env.sh; conda activate <environment_name>; cd /home/$USER/<project_directory>; python3 <file_name>.py"
 ```
 
@@ -191,7 +191,7 @@ srun --gres=gpu:1 --cpus-per-task=1 --mem=16GB --time=00:30:00 --pty /bin/bash
 ```bash
 singularity exec --nv \
     --overlay /scratch/$USER/jupyter_env/overlay-50G-10M.ext3:rw \
-    /scratch/work/public/singularity/cuda12.6.3-cudnn9.5.1-ubuntu22.04.5.sif \
+    /scratch/work/public/singularity/cuda12.8.1-cudnn9.8.0-ubuntu24.04.2.sif \
     /bin/bash
 ```
 
