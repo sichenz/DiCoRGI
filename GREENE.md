@@ -127,9 +127,9 @@ conda activate <environment_name>
 
 ## 5. Installing Packages
 
-### Using Alternative Container
+### Re-login to Container
 ```bash
-cd /scratch/$USER
+cd /scratch/$USER/env
 
 singularity exec --overlay /scratch/$USER/env/overlay-50G-10M.ext3:rw \
     /scratch/work/public/singularity/cuda12.8.1-cudnn9.8.0-ubuntu24.04.2.sif \
@@ -163,7 +163,7 @@ Create a file named `<job_name>.sbatch`:
 #SBATCH --gres=gpu:1
 
 module purge
-cd /scratch/$USER
+cd /scratch/$USER/env
 
 singularity exec --nv \
     --overlay /scratch/$USER/env/overlay-50G-10M.ext3:rw \
